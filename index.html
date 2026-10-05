@@ -1,0 +1,1402 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Smart Escape — AI DevFest</title>
+    <style>
+      :root {
+        --bg: #0f172a;
+        --panel: #1e293b;
+        --panel-2: #273449;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --border: #334155;
+        --room: #3b82f6;
+        --junction: #f59e0b;
+        --exit: #22c55e;
+        --blocked: #ef4444;
+        --closed: #7f1d1d;
+        --route: #38bdf8;
+        --start: #a855f7;
+        --shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+        --radius: 10px;
+        --font:
+          "Segoe UI", "Noto Sans Bengali", system-ui, -apple-system, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+      }
+      body {
+        font-family: var(--font);
+        background: radial-gradient(circle at 20% 0%, #1e293b 0%, #0f172a 60%);
+        color: var(--text);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 14px 22px;
+        background: rgba(15, 23, 42, 0.85);
+        border-bottom: 1px solid var(--border);
+        backdrop-filter: blur(8px);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+      header h1 {
+        font-size: 1.15rem;
+        margin: 0;
+        letter-spacing: 0.4px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      header h1 .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--exit);
+        box-shadow: 0 0 12px var(--exit);
+      }
+      header .lang-toggle {
+        display: flex;
+        gap: 6px;
+      }
+      .lang-toggle button {
+        background: var(--panel-2);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 6px 12px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        transition: background 0.2s;
+      }
+      .lang-toggle button.active {
+        background: var(--room);
+        border-color: var(--room);
+      }
+      .lang-toggle button:hover {
+        background: #334155;
+      }
+
+      main {
+        display: grid;
+        grid-template-columns: 1fr 340px;
+        gap: 16px;
+        padding: 16px;
+        flex: 1;
+        min-height: 0;
+      }
+      @media (max-width: 900px) {
+        main {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .canvas-wrap {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 12px;
+        box-shadow: var(--shadow);
+        display: flex;
+        flex-direction: column;
+        min-height: 460px;
+        position: relative;
+        overflow: hidden;
+      }
+      #map {
+        width: 100%;
+        height: 100%;
+        flex: 1;
+        background:
+          linear-gradient(rgba(148, 163, 184, 0.06) 1px, transparent 1px) 0 0 /
+            30px 30px,
+          linear-gradient(90deg, rgba(148, 163, 184, 0.06) 1px, transparent 1px)
+            0 0 / 30px 30px,
+          #0b1220;
+        border-radius: 8px;
+        touch-action: none;
+        user-select: none;
+      }
+      #map .node {
+        cursor: pointer;
+        transition:
+          transform 0.18s ease,
+          filter 0.18s ease;
+      }
+      #map .node:hover circle {
+        filter: brightness(1.25);
+      }
+      #map .node circle {
+        transition:
+          fill 0.25s ease,
+          stroke 0.25s ease,
+          r 0.2s ease;
+      }
+      #map .edge {
+        cursor: pointer;
+      }
+      #map .edge line {
+        transition:
+          stroke 0.3s ease,
+          stroke-width 0.3s ease,
+          opacity 0.3s ease;
+      }
+      #map .edge:hover line {
+        stroke-width: 5;
+      }
+
+      /* Animations */
+      @keyframes pulseRoute {
+        0%,
+        100% {
+          stroke-opacity: 1;
+        }
+        50% {
+          stroke-opacity: 0.65;
+        }
+      }
+      @keyframes pulseStart {
+        0%,
+        100% {
+          r: 22;
+        }
+        50% {
+          r: 25;
+        }
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(-4px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .route-edge {
+        animation: pulseRoute 1.8s ease-in-out infinite;
+      }
+      .node.start circle {
+        animation: pulseStart 1.8s ease-in-out infinite;
+      }
+
+      aside {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-height: 0;
+        overflow-y: auto;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 12px 14px;
+        box-shadow: var(--shadow);
+        animation: fadeIn 0.3s ease;
+      }
+      .card h2 {
+        font-size: 0.82rem;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        color: var(--muted);
+        margin: 0 0 8px 0;
+      }
+
+      .file-row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .file-row input[type="file"] {
+        flex: 1;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .btn {
+        background: var(--room);
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-size: 0.85rem;
+        cursor: pointer;
+        font-family: inherit;
+        transition:
+          transform 0.12s ease,
+          background 0.2s ease,
+          box-shadow 0.2s;
+      }
+      .btn:hover {
+        background: #2563eb;
+      }
+      .btn:active {
+        transform: scale(0.97);
+      }
+      .btn.secondary {
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+      }
+      .btn.secondary:hover {
+        background: #334155;
+      }
+      .btn.danger {
+        background: var(--blocked);
+      }
+      .btn.danger:hover {
+        background: #dc2626;
+      }
+      .btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+
+      .status {
+        font-size: 0.88rem;
+        line-height: 1.5;
+      }
+      .status .label {
+        color: var(--muted);
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+      }
+      .status .val {
+        font-weight: 600;
+      }
+      .route-path {
+        font-family: "Consolas", "Courier New", monospace;
+        background: #0b1220;
+        border-radius: 6px;
+        padding: 8px 10px;
+        margin-top: 6px;
+        font-size: 0.82rem;
+        word-break: break-word;
+        border: 1px solid var(--border);
+        color: var(--route);
+      }
+      .cost {
+        color: var(--exit);
+        font-weight: 700;
+        font-size: 1.05rem;
+      }
+      .error {
+        color: #fca5a5;
+        background: rgba(239, 68, 68, 0.12);
+        border: 1px solid rgba(239, 68, 68, 0.4);
+        padding: 8px 10px;
+        border-radius: 6px;
+        font-size: 0.82rem;
+        margin-top: 6px;
+      }
+      .warn {
+        color: #fde68a;
+        background: rgba(245, 158, 11, 0.12);
+        border: 1px solid rgba(245, 158, 11, 0.4);
+        padding: 8px 10px;
+        border-radius: 6px;
+        font-size: 0.82rem;
+        margin-top: 6px;
+      }
+      .ok {
+        color: #86efac;
+      }
+
+      .legend {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px 10px;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .legend .item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .swatch {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        display: inline-block;
+        flex-shrink: 0;
+      }
+
+      .hazards-list {
+        max-height: 160px;
+        overflow-y: auto;
+        font-size: 0.8rem;
+      }
+      .hazards-list .row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 4px 0;
+        border-bottom: 1px dashed var(--border);
+      }
+      .hazards-list .row:last-child {
+        border-bottom: none;
+      }
+      .hazards-list .tag {
+        padding: 1px 6px;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        background: var(--blocked);
+        color: #fff;
+      }
+      .hazards-list .tag.edge {
+        background: #b45309;
+      }
+      .hazards-list .tag.exit {
+        background: var(--closed);
+      }
+      .hazards-list .empty {
+        color: var(--muted);
+        font-style: italic;
+      }
+
+      .instr {
+        font-size: 0.78rem;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+      .instr b {
+        color: var(--text);
+      }
+
+      .toast {
+        position: fixed;
+        bottom: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        color: var(--text);
+        padding: 10px 16px;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        box-shadow: var(--shadow);
+        opacity: 0;
+        pointer-events: none;
+        transition:
+          opacity 0.25s ease,
+          transform 0.25s ease;
+        z-index: 100;
+      }
+      .toast.show {
+        opacity: 1;
+        transform: translateX(-50%) translateY(-4px);
+      }
+      .toast.err {
+        border-color: var(--blocked);
+        color: #fecaca;
+      }
+
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #475569;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>
+        <span class="dot"></span><span data-i18n="appTitle">Smart Escape</span>
+      </h1>
+      <div class="lang-toggle" role="group" aria-label="Language">
+        <button id="lang-en" class="active" type="button">English</button>
+        <button id="lang-bn" type="button">বাংলা</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="canvas-wrap">
+        <svg id="map" role="img" aria-label="Building map"></svg>
+      </section>
+
+      <aside>
+        <div class="card">
+          <h2 data-i18n="dataTitle">Data</h2>
+          <div class="file-row">
+            <input type="file" id="fileInput" accept=".json,application/json" />
+            <button
+              class="btn secondary"
+              id="loadSample"
+              type="button"
+              data-i18n="loadSample"
+            >
+              Sample
+            </button>
+          </div>
+          <div id="buildingName" class="instr" style="margin-top: 8px"></div>
+          <div id="dataError"></div>
+        </div>
+
+        <div class="card">
+          <h2 data-i18n="statusTitle">Status</h2>
+          <div class="status" id="statusBox">
+            <div class="label" data-i18n="startLabel">Start</div>
+            <div class="val" id="startVal">—</div>
+            <div class="label" style="margin-top: 8px" data-i18n="routeLabel">
+              Route
+            </div>
+            <div class="route-path" id="routeVal">—</div>
+            <div class="label" style="margin-top: 8px" data-i18n="costLabel">
+              Total Cost
+            </div>
+            <div class="val cost" id="costVal">—</div>
+          </div>
+          <div id="statusMsg"></div>
+          <div style="display: flex; gap: 8px; margin-top: 10px">
+            <button
+              class="btn secondary"
+              id="resetBtn"
+              type="button"
+              style="flex: 1"
+              data-i18n="reset"
+            >
+              Reset
+            </button>
+            <button
+              class="btn secondary"
+              id="clearStart"
+              type="button"
+              style="flex: 1"
+              data-i18n="clearStart"
+            >
+              Clear Start
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 data-i18n="legendTitle">Legend</h2>
+          <div class="legend">
+            <div class="item">
+              <span class="swatch" style="background: var(--room)"></span
+              ><span data-i18n="legendRoom">Room</span>
+            </div>
+            <div class="item">
+              <span class="swatch" style="background: var(--junction)"></span
+              ><span data-i18n="legendJunction">Junction</span>
+            </div>
+            <div class="item">
+              <span class="swatch" style="background: var(--exit)"></span
+              ><span data-i18n="legendExit">Exit</span>
+            </div>
+            <div class="item">
+              <span class="swatch" style="background: var(--start)"></span
+              ><span data-i18n="legendStart">Start</span>
+            </div>
+            <div class="item">
+              <span class="swatch" style="background: var(--blocked)"></span
+              ><span data-i18n="legendBlocked">Blocked Node</span>
+            </div>
+            <div class="item">
+              <span class="swatch" style="background: var(--closed)"></span
+              ><span data-i18n="legendClosed">Closed Exit</span>
+            </div>
+            <div class="item">
+              <span
+                class="swatch"
+                style="background: #b45309; border-radius: 2px"
+              ></span
+              ><span data-i18n="legendBlockedEdge">Blocked Corridor</span>
+            </div>
+            <div class="item">
+              <span
+                class="swatch"
+                style="background: var(--route); border-radius: 2px"
+              ></span
+              ><span data-i18n="legendRoute">Route</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 data-i18n="hazardsTitle">Active Hazards</h2>
+          <div class="hazards-list" id="hazardsList">
+            <div class="empty" data-i18n="noHazards">None</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 data-i18n="instrTitle">How to Use</h2>
+          <div class="instr" data-i18n-html="instructions">
+            <b>Click</b> a room/junction to set the start.<br />
+            <b>Click</b> a node or corridor again to toggle it blocked.<br />
+            <b>Right-click</b> an exit to close/reopen it.<br />
+            Hazards update the route instantly.
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+      /* =========================================================================
+   Smart Escape — AI DevFest mock test
+   Frontend-only. Loads building.json locally. Dijkstra + tie-break rules.
+   ========================================================================= */
+
+      /* ----------------------------- i18n ------------------------------------- */
+      const I18N = {
+        en: {
+          appTitle: "Smart Escape",
+          dataTitle: "Data",
+          loadSample: "Sample",
+          statusTitle: "Status",
+          startLabel: "Start",
+          routeLabel: "Route",
+          costLabel: "Total Cost",
+          reset: "Reset",
+          clearStart: "Clear Start",
+          legendTitle: "Legend",
+          legendRoom: "Room",
+          legendJunction: "Junction",
+          legendExit: "Exit",
+          legendStart: "Start",
+          legendBlocked: "Blocked Node",
+          legendClosed: "Closed Exit",
+          legendBlockedEdge: "Blocked Corridor",
+          legendRoute: "Route",
+          hazardsTitle: "Active Hazards",
+          noHazards: "None",
+          instrTitle: "How to Use",
+          instructions:
+            "<b>Click</b> a room/junction to set the start.<br>" +
+            "<b>Click</b> a node or corridor again to toggle it blocked.<br>" +
+            "<b>Right-click</b> an exit to close/reopen it.<br>" +
+            "Hazards update the route instantly.",
+          noRoute: "No route available",
+          startBlocked: "Starting location blocked",
+          selectStart: "Select a start location",
+          loadedOk: (name) => `Loaded: ${name}`,
+          invalidFile: "Invalid file: ",
+          pickStartFirst: "Pick a start location first",
+          cannotStartExit: "Cannot start from an exit",
+          hazardAdded: "Hazard added",
+          hazardRemoved: "Hazard removed",
+          startCleared: "Start cleared",
+          resetDone: "Reset to initial state",
+          sampleMissing:
+            "Sample data not available. Please load building.json.",
+          routeTo: "Route to",
+          exitLabel: "Exit",
+          selectNodeToToggle: "Click node to toggle blocked",
+          clickEdgeHint: "Click edge to toggle blocked",
+          startSet: (id) => `Start set: ${id}`,
+        },
+        bn: {
+          appTitle: "স্মার্ট এস্কেপ",
+          dataTitle: "ডেটা",
+          loadSample: "নমুনা",
+          statusTitle: "অবস্থা",
+          startLabel: "শুরু",
+          routeLabel: "পথ",
+          costLabel: "মোট খরচ",
+          reset: "রিসেট",
+          clearStart: "শুরু মুছুন",
+          legendTitle: "নির্দেশিকা",
+          legendRoom: "রুম",
+          legendJunction: "জাংশন",
+          legendExit: "বাহির পথ",
+          legendStart: "শুরু",
+          legendBlocked: "বন্ধ নোড",
+          legendClosed: "বন্ধ প্রস্থান",
+          legendBlockedEdge: "বন্ধ করিডোর",
+          legendRoute: "পথ",
+          hazardsTitle: "সক্রিয় বিপদ",
+          noHazards: "কিছু নেই",
+          instrTitle: "ব্যবহারবিধি",
+          instructions:
+            "<b>ক্লিক</b> করে রুম/জাংশন থেকে শুরু নির্বাচন করুন।<br>" +
+            "<b>আবার ক্লিক</b> করে নোড বা করিডোর বন্ধ করুন।<br>" +
+            "<b>ডান-ক্লিক</b> করে প্রস্থান বন্ধ/খুলুন।<br>" +
+            "বিপদ পরিবর্তনে পথ সাথে সাথে আপডেট হয়।",
+          noRoute: "কোনো পথ পাওয়া যায়নি",
+          startBlocked: "শুরুর স্থান বন্ধ",
+          selectStart: "শুরুর স্থান নির্বাচন করুন",
+          loadedOk: (name) => `লোড হয়েছে: ${name}`,
+          invalidFile: "অবৈধ ফাইল: ",
+          pickStartFirst: "প্রথমে শুরুর স্থান নির্বাচন করুন",
+          cannotStartExit: "প্রস্থান থেকে শুরু করা যাবে না",
+          hazardAdded: "বিপদ যোগ হয়েছে",
+          hazardRemoved: "বিপদ সরানো হয়েছে",
+          startCleared: "শুরু মুছে ফেলা হয়েছে",
+          resetDone: "প্রাথমিক অবস্থায় রিসেট হয়েছে",
+          sampleMissing: "নমুনা ডেটা পাওয়া যায়নি। building.json লোড করুন।",
+          routeTo: "পথ",
+          exitLabel: "প্রস্থান",
+          selectNodeToToggle: "বন্ধ করতে নোডে ক্লিক করুন",
+          clickEdgeHint: "বন্ধ করতে এজে ক্লিক করুন",
+          startSet: (id) => `শুরু নির্ধারিত: ${id}`,
+        },
+      };
+
+      let LANG = "en";
+      const t = (key, ...args) => {
+        const v = I18N[LANG][key];
+        return typeof v === "function" ? v(...args) : v;
+      };
+
+      /* ---------------------------- State ------------------------------------- */
+      let graph = null; // { building, nodes:[], edges:[], initial_state }
+      let nodesById = new Map();
+      let edgesById = new Map();
+      let adjacency = new Map(); // id -> [{ edgeId, to, cost }]
+      let blockedNodes = new Set();
+      let blockedEdges = new Set();
+      let closedExits = new Set();
+      let startId = null;
+      let currentRoute = null; // { path:[ids], cost, exit }
+
+      /* ---------------------------- Utilities --------------------------------- */
+      const svgNS = "http://www.w3.org/2000/svg";
+      const $ = (sel) => document.querySelector(sel);
+
+      function toast(msg, isErr = false) {
+        const el = $("#toast");
+        el.textContent = msg;
+        el.classList.toggle("err", isErr);
+        el.classList.add("show");
+        clearTimeout(toast._t);
+        toast._t = setTimeout(() => el.classList.remove("show"), 1800);
+      }
+
+      function el(tag, attrs = {}, children = []) {
+        const n = document.createElementNS(svgNS, tag);
+        for (const k in attrs) n.setAttribute(k, attrs[k]);
+        for (const c of children) n.appendChild(c);
+        return n;
+      }
+
+      /* ------------------------ Validation ----------------------------------- */
+      function validate(data) {
+        if (!data || typeof data !== "object")
+          throw new Error("Root is not an object.");
+        if (typeof data.building !== "string" || !data.building.trim())
+          throw new Error("'building' must be a non-empty string.");
+        if (!Array.isArray(data.nodes) || data.nodes.length < 2)
+          throw new Error("'nodes' must be an array with at least 2 entries.");
+        if (data.nodes.length > 60)
+          throw new Error("'nodes' exceeds the 60-node limit.");
+        if (!Array.isArray(data.edges) || data.edges.length < 1)
+          throw new Error("'edges' must be a non-empty array.");
+        if (data.edges.length > 150)
+          throw new Error("'edges' exceeds the 150-edge limit.");
+
+        const ids = new Set();
+        let hasExit = false,
+          hasRoomOrJunction = false;
+        for (const n of data.nodes) {
+          if (typeof n.id !== "string" || !n.id)
+            throw new Error("Node missing 'id'.");
+          if (ids.has(n.id)) throw new Error(`Duplicate node id: ${n.id}`);
+          ids.add(n.id);
+          if (typeof n.label !== "string" || !n.label)
+            throw new Error(`Node ${n.id} missing 'label'.`);
+          if (!["room", "junction", "exit"].includes(n.type))
+            throw new Error(`Node ${n.id} has invalid type '${n.type}'.`);
+          if (typeof n.x !== "number" || typeof n.y !== "number")
+            throw new Error(`Node ${n.id} has non-numeric coordinates.`);
+          if (n.type === "exit") hasExit = true;
+          else hasRoomOrJunction = true;
+        }
+        if (!hasExit) throw new Error("At least one exit is required.");
+        if (!hasRoomOrJunction)
+          throw new Error("At least one room/junction is required.");
+
+        const eids = new Set();
+        const pairs = new Set();
+        for (const e of data.edges) {
+          if (typeof e.id !== "string" || !e.id)
+            throw new Error("Edge missing 'id'.");
+          if (eids.has(e.id)) throw new Error(`Duplicate edge id: ${e.id}`);
+          eids.add(e.id);
+          if (!ids.has(e.from))
+            throw new Error(`Edge ${e.id} has unknown 'from'.`);
+          if (!ids.has(e.to)) throw new Error(`Edge ${e.id} has unknown 'to'.`);
+          if (e.from === e.to) throw new Error(`Edge ${e.id} is a self-loop.`);
+          const key = [e.from, e.to].sort().join("|");
+          if (pairs.has(key))
+            throw new Error(`Repeated node pair on edge ${e.id}.`);
+          pairs.add(key);
+          if (
+            typeof e.cost !== "number" ||
+            !Number.isInteger(e.cost) ||
+            e.cost <= 0
+          )
+            throw new Error(`Edge ${e.id} cost must be a positive integer.`);
+        }
+
+        if (!data.initial_state || typeof data.initial_state !== "object")
+          throw new Error("Missing 'initial_state'.");
+        const check = (arrName, allowedTypes) => {
+          const arr = data.initial_state[arrName];
+          if (arr === undefined)
+            throw new Error(`initial_state.${arrName} missing.`);
+          if (!Array.isArray(arr))
+            throw new Error(`initial_state.${arrName} must be an array.`);
+          for (const id of arr) {
+            const n = data.nodes.find((x) => x.id === id);
+            if (arrName === "blocked_edges") {
+              if (!eids.has(id))
+                throw new Error(
+                  `initial_state.${arrName} has unknown edge '${id}'.`,
+                );
+            } else if (arrName === "closed_exits") {
+              if (!n || n.type !== "exit")
+                throw new Error(
+                  `initial_state.${arrName} '${id}' must be an exit.`,
+                );
+            } else {
+              // blocked_nodes
+              if (!n)
+                throw new Error(
+                  `initial_state.${arrName} has unknown node '${id}'.`,
+                );
+              if (n.type === "exit")
+                throw new Error(`blocked_nodes cannot contain exit '${id}'.`);
+            }
+          }
+        };
+        check("blocked_nodes", ["room", "junction"]);
+        check("blocked_edges", ["edge"]);
+        check("closed_exits", ["exit"]);
+      }
+
+      /* ------------------------ Load & build graph ---------------------------- */
+      function loadGraph(data) {
+        validate(data);
+        graph = JSON.parse(JSON.stringify(data));
+        nodesById = new Map(graph.nodes.map((n) => [n.id, n]));
+        edgesById = new Map(graph.edges.map((e) => [e.id, e]));
+        adjacency = new Map(graph.nodes.map((n) => [n.id, []]));
+        for (const e of graph.edges) {
+          adjacency.get(e.from).push({ edgeId: e.id, to: e.to, cost: e.cost });
+          adjacency.get(e.to).push({ edgeId: e.id, to: e.from, cost: e.cost });
+        }
+        resetHazards();
+        renderAll();
+        $("#buildingName").textContent =
+          `${graph.building} — ${graph.nodes.length} nodes, ${graph.edges.length} edges`;
+        showDataError("");
+      }
+
+      function resetHazards() {
+        blockedNodes = new Set(graph.initial_state.blocked_nodes);
+        blockedEdges = new Set(graph.initial_state.blocked_edges);
+        closedExits = new Set(graph.initial_state.closed_exits);
+        startId = null;
+        currentRoute = null;
+      }
+
+      function showDataError(msg) {
+        const box = $("#dataError");
+        box.innerHTML = msg
+          ? `<div class="error">${escapeHtml(msg)}</div>`
+          : "";
+      }
+
+      function escapeHtml(s) {
+        return String(s).replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[c],
+        );
+      }
+
+      /* ------------------------ Dijkstra + tie-break -------------------------- */
+      /**
+       * Find the lowest-cost route from start to any open exit.
+       * Excludes blocked nodes, blocked edges, and closed exits.
+       * Tie-breaks: (1) min cost; (2) lexicographically smallest exit ID;
+       *             (3) lexicographically smallest node-ID sequence.
+       */
+      function findBestRoute() {
+        if (!startId || !nodesById.has(startId)) return null;
+        if (blockedNodes.has(startId)) return { error: "startBlocked" };
+        const startNode = nodesById.get(startId);
+        if (startNode.type === "exit") return { error: "cannotStartExit" };
+
+        // dist map with { cost, path } — path for tie-break comparison.
+        const best = new Map();
+        best.set(startId, { cost: 0, path: [startId] });
+
+        // Simple priority selection (n ≤ 60, e ≤ 150 → fine).
+        const visited = new Set();
+        while (true) {
+          // pick unvisited with smallest (cost, path)
+          let cur = null,
+            curRec = null;
+          for (const [id, rec] of best) {
+            if (visited.has(id)) continue;
+            if (
+              !curRec ||
+              rec.cost < curRec.cost ||
+              (rec.cost === curRec.cost && lexLess(rec.path, curRec.path))
+            ) {
+              cur = id;
+              curRec = rec;
+            }
+          }
+          if (!cur) break;
+          visited.add(cur);
+
+          for (const nb of adjacency.get(cur) || []) {
+            if (blockedEdges.has(nb.edgeId)) continue;
+            if (blockedNodes.has(nb.to)) continue;
+            const nextNode = nodesById.get(nb.to);
+            // cannot pass through a closed exit as intermediate
+            if (nextNode.type === "exit" && closedExits.has(nb.to)) continue;
+
+            const newCost = curRec.cost + nb.cost;
+            const newPath = [...curRec.path, nb.to];
+            const prev = best.get(nb.to);
+            if (
+              !prev ||
+              newCost < prev.cost ||
+              (newCost === prev.cost && lexLess(newPath, prev.path))
+            ) {
+              best.set(nb.to, { cost: newCost, path: newPath });
+              visited.delete(nb.to); // allow improvement
+            }
+          }
+        }
+
+        // Consider only exits that are reachable and not closed.
+        const candidates = [];
+        for (const n of graph.nodes) {
+          if (n.type !== "exit") continue;
+          if (closedExits.has(n.id)) continue;
+          if (blockedNodes.has(n.id)) continue;
+          const rec = best.get(n.id);
+          if (!rec) continue;
+          candidates.push({ exit: n.id, cost: rec.cost, path: rec.path });
+        }
+        if (candidates.length === 0) return { error: "noRoute" };
+
+        candidates.sort((a, b) => {
+          if (a.cost !== b.cost) return a.cost - b.cost;
+          if (a.exit !== b.exit) return a.exit < b.exit ? -1 : 1;
+          return lexCompare(a.path, b.path);
+        });
+        return candidates[0];
+      }
+
+      function lexLess(a, b) {
+        return lexCompare(a, b) < 0;
+      }
+      function lexCompare(a, b) {
+        const len = Math.min(a.length, b.length);
+        for (let i = 0; i < len; i++) {
+          if (a[i] < b[i]) return -1;
+          if (a[i] > b[i]) return 1;
+        }
+        return a.length - b.length;
+      }
+
+      /* ---------------------------- Rendering -------------------------------- */
+      function renderAll() {
+        renderMap();
+        renderStatus();
+        renderHazards();
+      }
+
+      function renderMap() {
+        const svg = $("#map");
+        // preserve viewBox based on node bounds
+        svg.innerHTML = "";
+
+        if (!graph) return;
+
+        const xs = graph.nodes.map((n) => n.x);
+        const ys = graph.nodes.map((n) => n.y);
+        const minX = Math.min(...xs) - 60;
+        const minY = Math.min(...ys) - 60;
+        const maxX = Math.max(...xs) + 60;
+        const maxY = Math.max(...ys) + 60;
+        const w = Math.max(maxX - minX, 400);
+        const h = Math.max(maxY - minY, 300);
+        svg.setAttribute("viewBox", `${minX} ${minY} ${w} ${h}`);
+        svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+
+        // --- Edges layer ---
+        const edgeLayer = el("g", { class: "edges" });
+        svg.appendChild(edgeLayer);
+        for (const e of graph.edges) {
+          const a = nodesById.get(e.from);
+          const b = nodesById.get(e.to);
+          if (!a || !b) continue;
+
+          const isBlocked = blockedEdges.has(e.id);
+          const onRoute =
+            currentRoute &&
+            currentRoute.path.length > 1 &&
+            edgeOnRoute(currentRoute.path, e);
+
+          let stroke = "#64748b";
+          let sw = 3;
+          let dash = null;
+          if (isBlocked) {
+            stroke = "#b45309";
+            sw = 3;
+            dash = "6 5";
+          }
+          if (onRoute) {
+            stroke = "#38bdf8";
+            sw = 6;
+          }
+
+          const g = el("g", { class: "edge", "data-edge-id": e.id });
+          const line = el("line", {
+            x1: a.x,
+            y1: a.y,
+            x2: b.x,
+            y2: b.y,
+            stroke,
+            "stroke-width": sw,
+            "stroke-linecap": "round",
+            ...(dash ? { "stroke-dasharray": dash } : {}),
+            class: onRoute ? "route-edge" : "",
+          });
+          g.appendChild(line);
+          g.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            toggleEdge(e.id);
+          });
+
+          // cost label at midpoint
+          const mx = (a.x + b.x) / 2;
+          const my = (a.y + b.y) / 2 - 6;
+          const labelBg = el("rect", {
+            x: mx - 12,
+            y: my - 11,
+            width: 24,
+            height: 16,
+            rx: 4,
+            fill: "#0b1220",
+            stroke: "#334155",
+            "stroke-width": 0.6,
+            opacity: 0.9,
+          });
+          const label = el("text", {
+            x: mx,
+            y: my + 1,
+            "text-anchor": "middle",
+            "font-size": 10,
+            fill: isBlocked ? "#fbbf24" : "#cbd5e1",
+            "font-family": "Consolas, monospace",
+            "pointer-events": "none",
+          });
+          label.textContent = String(e.cost);
+          g.appendChild(labelBg);
+          g.appendChild(label);
+          edgeLayer.appendChild(g);
+        }
+
+        // --- Nodes layer ---
+        const nodeLayer = el("g", { class: "nodes" });
+        svg.appendChild(nodeLayer);
+        for (const n of graph.nodes) {
+          const isBlocked = blockedNodes.has(n.id);
+          const isClosed = n.type === "exit" && closedExits.has(n.id);
+          const isStart = n.id === startId;
+          const onRoute = currentRoute && currentRoute.path.includes(n.id);
+
+          let fill =
+            n.type === "room"
+              ? "#3b82f6"
+              : n.type === "junction"
+                ? "#f59e0b"
+                : "#22c55e";
+          if (isBlocked) fill = "#ef4444";
+          if (isClosed) fill = "#7f1d1d";
+          if (isStart) fill = "#a855f7";
+
+          const r = n.type === "exit" ? 20 : 18;
+
+          const g = el("g", {
+            class: "node" + (isStart ? " start" : ""),
+            "data-node-id": n.id,
+          });
+
+          // Glow ring for route nodes
+          if (onRoute) {
+            g.appendChild(
+              el("circle", {
+                cx: n.x,
+                cy: n.y,
+                r: r + 5,
+                fill: "none",
+                stroke: "#38bdf8",
+                "stroke-width": 2.5,
+                opacity: 0.55,
+              }),
+            );
+          }
+
+          const circle = el("circle", {
+            cx: n.x,
+            cy: n.y,
+            r,
+            fill,
+            stroke: "#0b1220",
+            "stroke-width": 2,
+            opacity: isBlocked || isClosed ? 0.65 : 1,
+          });
+          g.appendChild(circle);
+
+          // Node ID text
+          const idText = el("text", {
+            x: n.x,
+            y: n.y + 4,
+            "text-anchor": "middle",
+            "font-size": 12,
+            "font-weight": 700,
+            fill: "#0b1220",
+            "pointer-events": "none",
+          });
+          idText.textContent = n.id;
+          g.appendChild(idText);
+
+          // Label below
+          const labelText = el("text", {
+            x: n.x,
+            y: n.y + r + 14,
+            "text-anchor": "middle",
+            "font-size": 10,
+            fill: "#cbd5e1",
+            "pointer-events": "none",
+          });
+          labelText.textContent = n.label;
+          g.appendChild(labelText);
+
+          // Left-click behaviour:
+          //  - exit: set start (if not closed) — but exits can't be start; right-click toggles close
+          //  - room/junction: if not selected as start yet → set start
+          //                   if already start → clear start (feels natural)
+          //  - any node when start already set and it's not the start → toggle blocked
+          g.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            onNodeClick(n);
+          });
+          g.addEventListener("contextmenu", (ev) => {
+            ev.preventDefault();
+            onNodeRightClick(n);
+          });
+
+          nodeLayer.appendChild(g);
+        }
+      }
+
+      function edgeOnRoute(path, edge) {
+        for (let i = 0; i < path.length - 1; i++) {
+          const a = path[i],
+            b = path[i + 1];
+          if (
+            (edge.from === a && edge.to === b) ||
+            (edge.from === b && edge.to === a)
+          ) {
+            return true;
+          }
+        }
+        return false;
+      }
+
+      /* ------------------------ Interaction ---------------------------------- */
+      function onNodeClick(n) {
+        // 1) If node is blocked → user wants to unblock it.
+        if (blockedNodes.has(n.id)) {
+          blockedNodes.delete(n.id);
+          toast(t("hazardRemoved"));
+          renderAll();
+          return;
+        }
+
+        // 2) Exit clicked → can't be a start. Just toggle close? No — leave close for right-click.
+        if (n.type === "exit") {
+          // If already start (shouldn't be), clear it.
+          if (startId === n.id) {
+            startId = null;
+            renderAll();
+            return;
+          }
+          toast(t("cannotStartExit"), true);
+          return;
+        }
+
+        // 3) First interaction → set start.
+        if (startId === null) {
+          startId = n.id;
+          toast(t("startSet", n.id));
+          renderAll();
+          return;
+        }
+
+        // 4) Clicking the current start again → clear it.
+        if (startId === n.id) {
+          startId = null;
+          currentRoute = null;
+          toast(t("startCleared"));
+          renderAll();
+          return;
+        }
+
+        // 5) Start already set, clicking a different node → toggle blocked.
+        blockedNodes.add(n.id);
+        toast(t("hazardAdded"));
+        renderAll();
+      }
+
+      function onNodeRightClick(n) {
+        if (n.type !== "exit") {
+          // right-click on non-exit → toggle blocked (nice UX)
+          if (blockedNodes.has(n.id)) {
+            blockedNodes.delete(n.id);
+            toast(t("hazardRemoved"));
+          } else {
+            if (startId === n.id) startId = null; // can't start from blocked
+            blockedNodes.add(n.id);
+            toast(t("hazardAdded"));
+          }
+          renderAll();
+          return;
+        }
+        // Exit: close/reopen
+        if (closedExits.has(n.id)) {
+          closedExits.delete(n.id);
+          toast(t("hazardRemoved"));
+        } else {
+          closedExits.add(n.id);
+          toast(t("hazardAdded"));
+        }
+        renderAll();
+      }
+
+      function toggleEdge(edgeId) {
+        if (blockedEdges.has(edgeId)) {
+          blockedEdges.delete(edgeId);
+          toast(t("hazardRemoved"));
+        } else {
+          blockedEdges.add(edgeId);
+          toast(t("hazardAdded"));
+        }
+        renderAll();
+      }
+
+      /* ---------------------------- Status panel ------------------------------ */
+      function renderStatus() {
+        const startVal = $("#startVal");
+        const routeVal = $("#routeVal");
+        const costVal = $("#costVal");
+        const statusMsg = $("#statusMsg");
+        statusMsg.innerHTML = "";
+
+        if (!graph) {
+          startVal.textContent = "—";
+          routeVal.textContent = "—";
+          costVal.textContent = "—";
+          return;
+        }
+
+        if (!startId) {
+          startVal.textContent = "—";
+          routeVal.textContent = "—";
+          costVal.textContent = "—";
+          statusMsg.innerHTML = `<div class="warn">${t("selectStart")}</div>`;
+          currentRoute = null;
+          return;
+        }
+
+        startVal.textContent = `${startId} (${nodesById.get(startId).label})`;
+
+        if (blockedNodes.has(startId)) {
+          routeVal.textContent = "—";
+          costVal.textContent = "—";
+          statusMsg.innerHTML = `<div class="error">${t("startBlocked")}</div>`;
+          currentRoute = null;
+          return;
+        }
+
+        const result = findBestRoute();
+        if (!result || result.error === "noRoute") {
+          routeVal.textContent = "—";
+          costVal.textContent = "—";
+          statusMsg.innerHTML = `<div class="error">${t("noRoute")}</div>`;
+          currentRoute = null;
+          return;
+        }
+        if (result.error === "startBlocked") {
+          routeVal.textContent = "—";
+          costVal.textContent = "—";
+          statusMsg.innerHTML = `<div class="error">${t("startBlocked")}</div>`;
+          currentRoute = null;
+          return;
+        }
+
+        currentRoute = result;
+        routeVal.textContent = result.path.join(" → ");
+        costVal.textContent = result.cost;
+        statusMsg.innerHTML = `<div class="ok" style="margin-top:6px;">${t("routeTo")} ${t("exitLabel")}: <b>${result.exit}</b></div>`;
+      }
+
+      /* ---------------------------- Hazards list ------------------------------ */
+      function renderHazards() {
+        const box = $("#hazardsList");
+        if (!graph) {
+          box.innerHTML = `<div class="empty">${t("noHazards")}</div>`;
+          return;
+        }
+        const items = [];
+        for (const id of blockedNodes)
+          items.push({ id, kind: "node", tag: t("legendBlocked"), cls: "" });
+        for (const id of blockedEdges) {
+          const e = edgesById.get(id);
+          items.push({
+            id: e ? `${e.from} ↔ ${e.to}` : id,
+            kind: "edge",
+            tag: t("legendBlockedEdge"),
+            cls: "edge",
+            edgeId: id,
+          });
+        }
+        for (const id of closedExits)
+          items.push({ id, kind: "exit", tag: t("legendClosed"), cls: "exit" });
+
+        if (items.length === 0) {
+          box.innerHTML = `<div class="empty">${t("noHazards")}</div>`;
+          return;
+        }
+        box.innerHTML = items
+          .map(
+            (it) =>
+              `<div class="row">
+       <span>${escapeHtml(it.id)}</span>
+       <span class="tag ${it.cls}">${escapeHtml(it.tag)}</span>
+     </div>`,
+          )
+          .join("");
+      }
+
+      /* ---------------------------- Language ---------------------------------- */
+      function applyLanguage() {
+        document.documentElement.lang = LANG;
+        document.querySelectorAll("[data-i18n]").forEach((el) => {
+          const k = el.getAttribute("data-i18n");
+          const v = I18N[LANG][k];
+          if (typeof v === "string") el.textContent = v;
+        });
+        document.querySelectorAll("[data-i18n-html]").forEach((el) => {
+          const k = el.getAttribute("data-i18n-html");
+          const v = I18N[LANG][k];
+          if (typeof v === "string") el.innerHTML = v;
+        });
+        $("#lang-en").classList.toggle("active", LANG === "en");
+        $("#lang-bn").classList.toggle("active", LANG === "bn");
+        renderAll();
+      }
+
+      /* ---------------------------- Wiring ------------------------------------ */
+      $("#lang-en").addEventListener("click", () => {
+        LANG = "en";
+        applyLanguage();
+      });
+      $("#lang-bn").addEventListener("click", () => {
+        LANG = "bn";
+        applyLanguage();
+      });
+
+      $("#resetBtn").addEventListener("click", () => {
+        if (!graph) return;
+        resetHazards();
+        renderAll();
+        toast(t("resetDone"));
+      });
+
+      $("#clearStart").addEventListener("click", () => {
+        startId = null;
+        currentRoute = null;
+        renderAll();
+        toast(t("startCleared"));
+      });
+
+      $("#fileInput").addEventListener("change", (ev) => {
+        const file = ev.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const data = JSON.parse(reader.result);
+            loadGraph(data);
+            toast(t("loadedOk", data.building));
+          } catch (err) {
+            showDataError(t("invalidFile") + err.message);
+            toast(t("invalidFile") + err.message, true);
+          }
+        };
+        reader.onerror = () => toast("Failed to read file.", true);
+        reader.readAsText(file);
+      });
+
+      $("#loadSample").addEventListener("click", async () => {
+        try {
+          const res = await fetch("./building.json", { cache: "no-store" });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          loadGraph(data);
+          toast(t("loadedOk", data.building));
+        } catch (err) {
+          showDataError(t("sampleMissing"));
+          toast(t("sampleMissing"), true);
+        }
+      });
+
+      /* ---------------------------- Bootstrap --------------------------------- */
+      // Try to auto-load the sample so judges see something immediately.
+      (async function boot() {
+        try {
+          const res = await fetch("./building.json", { cache: "no-store" });
+          if (res.ok) {
+            const data = await res.json();
+            loadGraph(data);
+          }
+        } catch {
+          /* silent — user can upload */
+        }
+        applyLanguage();
+      })();
+    </script>
+  </body>
+</html>
