@@ -5,10 +5,7 @@
 **Live site:** https://adib18804.github.io/devfest-aif_452928d646c443ada0ed/
 **Repository:** https://github.com/Adib18804/devfest-aif_452928d646c443ada0ed
 
-![Baseline](screenshots/01-baseline.png)
-![Blocked C2 — reroute](screenshots/02-blocked-c2.png)
 
----
 
 ## What it is
 
